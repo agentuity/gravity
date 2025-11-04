@@ -25,8 +25,9 @@ var startCmd = &cobra.Command{
 		localPort, _ := cmd.Flags().GetInt("localPort")
 		orgID, _ := cmd.Flags().GetString("orgID")
 		projectID, _ := cmd.Flags().GetString("projectID")
+		token, _ := cmd.Flags().GetString("token")
 
-		endpoint, err := utils.GetDevModeEndpoint(ctx, logger, "https://api.agentuity.com", "token", projectID, "hostname")
+		endpoint, err := utils.GetDevModeEndpoint(ctx, logger, "https://api.agentuity.com", token, projectID, "hostname")
 		if err != nil {
 			logger.Error("failed to get devmode endpoint: %v", err)
 			os.Exit(1)
@@ -138,9 +139,11 @@ func Execute() {
 func init() {
 	startCmd.Flags().IntP("localPort", "p", 3500, "Local port for the proxy")
 	startCmd.Flags().StringP("orgID", "o", "", "Organization ID")
-	startCmd.Flags().StringP("projectID", "pr", "", "Project ID")
+	startCmd.Flags().StringP("projectID", "i", "", "Project ID")
+	startCmd.Flags().StringP("token", "t", "", "API Token")
 	// Mark required flags
 	startCmd.MarkFlagRequired("orgID")
 	startCmd.MarkFlagRequired("projectID")
 	startCmd.MarkFlagRequired("localPort")
+	startCmd.MarkFlagRequired("token")
 }

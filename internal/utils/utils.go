@@ -51,6 +51,9 @@ func GetDevModeEndpoint(ctx context.Context, logger _logger.Logger, baseUrl stri
 	body := map[string]string{
 		"hostname": hostname,
 	}
+	api.Commit = "none"
+	api.Project = "CLI"
+
 	if err := client.Do("POST", fmt.Sprintf("/cli/devmode/2/%s", url.PathEscape(projectId)), body, &resp); err != nil {
 		return nil, fmt.Errorf("error fetching devmode endpoint: %s", err)
 	}

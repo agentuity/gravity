@@ -3,7 +3,7 @@ module github.com/agentuity/gravity-proxy
 go 1.25.3
 
 require (
-	github.com/agentuity/go-common v1.0.116
+	github.com/agentuity/go-common v1.0.119
 	github.com/spf13/cobra v1.9.1
 	gvisor.dev/gvisor v0.0.0-20240423190808-9d7a357edefe
 )

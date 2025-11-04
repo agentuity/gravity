@@ -1,5 +1,5 @@
-github.com/agentuity/go-common v1.0.116 h1:qhE5tvBh1AWjjeMS5f/sIMli2ZTHb8FCQJeB5Jj01ak=
-github.com/agentuity/go-common v1.0.116/go.mod h1:yLHr5Wtfvqa1oZNoQK2ksmtCUb5I7ZPJ1oyoZskH45U=
+github.com/agentuity/go-common v1.0.119 h1:R7XkIhsi7kmU+DQ5WVi5LJcuY/juHNGFJrN3slrH8QI=
+github.com/agentuity/go-common v1.0.119/go.mod h1:yLHr5Wtfvqa1oZNoQK2ksmtCUb5I7ZPJ1oyoZskH45U=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cockroachdb/errors v1.11.3 h1:5bA+k2Y6r+oz/6Z/RFlNeVCesGARKuC6YymtcDrbC/I=
