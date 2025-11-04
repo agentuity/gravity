@@ -1,0 +1,79 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25.3'
+
+    - name: Get dependencies
+      run: go mod download
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        mkdir -p dist
+        BINARY_NAME=gravity-proxy
+        if [ "$GOOS" = "windows" ]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+        fi
+        go build -ldflags="-s -w" -o dist/${BINARY_NAME} .
+        
+        # Create archive
+        cd dist
+        if [ "$GOOS" = "windows" ]; then
+          zip gravity-proxy-${GOOS}-${GOARCH}.zip ${BINARY_NAME}
+        else
+          tar -czf gravity-proxy-${GOOS}-${GOARCH}.tar.gz ${BINARY_NAME}
+        fi
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gravity-proxy-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: dist/gravity-proxy-*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: artifacts/*/gravity-proxy-*
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

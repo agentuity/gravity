@@ -22,11 +22,9 @@ var startCmd = &cobra.Command{
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
-		// Get flags
 		localPort, _ := cmd.Flags().GetInt("localPort")
 		orgID, _ := cmd.Flags().GetString("orgID")
 		projectID, _ := cmd.Flags().GetString("projectID")
-		// get from GetDevModeEndpoint(projectID)
 
 		endpoint, err := utils.GetDevModeEndpoint(ctx, logger, "https://api.agentuity.com", "token", projectID, "hostname")
 		if err != nil {
