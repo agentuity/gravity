@@ -58,6 +58,7 @@ var startCmd = &cobra.Command{
 			IPv6Addr:  ipv6Address.String(),
 			LocalPort: localPort,
 			ProxyPort: proxyPort,
+			Token:     token,
 		}
 
 		provResp, err := stack.ProvisionGravity(ctx, logger, agent, urls)

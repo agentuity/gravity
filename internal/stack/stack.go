@@ -51,6 +51,7 @@ func ProvisionGravity(ctx context.Context, logger _logger.Logger, agent AgentMet
 	if err != nil {
 		return nil, fmt.Errorf("error getting hostname: %w", err)
 	}
+
 	requestObj := gravity.ProvisionRequest{
 		Context:    ctx,
 		GravityURL: "grpc://devmode.agentuity.com",
@@ -62,8 +63,8 @@ func ProvisionGravity(ctx context.Context, logger _logger.Logger, agent AgentMet
 		Hostname:   hostname,
 		Ephemeral:  true,
 		Capabilities: &proto.ClientCapabilities{
-			DynamicHostname:       true,
-			DynamicProjectRouting: agent.ProjectID,
+			DynamicHostname: true,
+			// DynamicProjectRouting: "",
 		},
 	}
 
@@ -267,8 +268,8 @@ func CreateNetworkProvider(
 			FailoverTimeout:      time.Second,
 		},
 		Capabilities: &proto.ClientCapabilities{
-			DynamicHostname:       true,
-			DynamicProjectRouting: agent.ProjectID,
+			DynamicHostname: true,
+			// DynamicProjectRouting: "",
 		},
 		NetworkInterface:  &network,
 		Provider:          &prov,
@@ -276,6 +277,7 @@ func CreateNetworkProvider(
 		IP6Address:        urls.IPv6Addr,
 		SkipAutoReconnect: true,
 	})
+
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create gravity client: %w", err)
 	}
