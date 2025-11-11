@@ -15,7 +15,6 @@ This CLI creates a local proxy server that connects to Agentuity's Gravity netwo
 ## Features
 
 - **Secure Tunneling**: Establishes encrypted connections through Gravity network
-- **Automatic Certificate Management**: Generates and manages TLS certificates
 - **IPv6 Support**: Creates IPv6 addresses using Gravity's network infrastructure
 - **Gravity Network**: Seamlessly connects to Agentuity network endpoints
 - **Network Stack Management**: Handles low-level networking with gVisor integration
