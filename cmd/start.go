@@ -193,4 +193,5 @@ func init() {
 	rootCmd.MarkFlagRequired("port")
 	rootCmd.MarkFlagRequired("token")
 	rootCmd.MarkFlagRequired("endpoint-id")
+	rootCmd.MarkFlagRequired("url")
 }
