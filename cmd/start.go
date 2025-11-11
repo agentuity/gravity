@@ -180,9 +180,9 @@ func init() {
 	rootCmd.DisableAutoGenTag = true
 
 	rootCmd.Flags().IntP("port", "p", 3500, "Local port for the proxy")
-	rootCmd.Flags().StringP("org-id", "o", "", "Organization ID")
-	rootCmd.Flags().StringP("project-id", "i", "", "Project ID")
-	rootCmd.Flags().StringP("token", "t", "", "API Token")
+	rootCmd.Flags().StringP("org-id", "o", os.Getenv("AGENTUITY_CLOUD_ORG_ID"), "Organization ID")
+	rootCmd.Flags().StringP("project-id", "i", os.Getenv("AGENTUITY_CLOUD_PROJECT_ID"), "Project ID")
+	rootCmd.Flags().StringP("token", "t", os.Getenv("AGENTUITY_SDK_KEY"), "Project SDK Key")
 	rootCmd.Flags().StringP("endpoint-id", "e", "", "The endpoint id")
 	rootCmd.Flags().StringP("url", "u", "grpc://devmode.agentuity.com", "The gravity url")
 	rootCmd.Flags().String("log-level", "", "The log level to use")
@@ -193,5 +193,4 @@ func init() {
 	rootCmd.MarkFlagRequired("port")
 	rootCmd.MarkFlagRequired("token")
 	rootCmd.MarkFlagRequired("endpoint-id")
-	rootCmd.MarkFlagRequired("url")
 }
