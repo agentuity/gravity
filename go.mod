@@ -1,4 +1,4 @@
-module github.com/agentuity/gravity-proxy
+module github.com/agentuity/gravity
 
 go 1.25.3
 

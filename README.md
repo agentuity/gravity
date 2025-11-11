@@ -1,44 +1,30 @@
-# Endpoint Client
+<div align="center">
+    <img src=".github/Agentuity.png" alt="Agentuity" width="100"/>
+</div>
 
-A development proxy tool that enables secure tunneling to development endpoints through the Gravity network infrastructure.
+<br />
+
+# Gravity Client
+
+The gravity client CLI that enables secure tunneling to development endpoints through the Agentuity Gravity network infrastructure.
 
 ## Overview
 
-Endpoint Client creates a local proxy server that connects to Agentuity's Gravity network, allowing developers to expose local services through secure IPv6 tunnels with automatic certificate generation and network stack management.
+This CLI creates a local proxy server that connects to Agentuity's Gravity network, allowing developers to expose local services through secure IPv6 tunnels with automatic certificate generation and network stack management.
 
 ## Features
 
 - **Secure Tunneling**: Establishes encrypted connections through Gravity network
 - **Automatic Certificate Management**: Generates and manages TLS certificates
-- **IPv6 Support**: Creates IPv6 addresses using Gravity's network infrastructure  
+- **IPv6 Support**: Creates IPv6 addresses using Gravity's network infrastructure
 - **Development Mode Integration**: Seamlessly connects to Agentuity development endpoints
 - **Network Stack Management**: Handles low-level networking with gVisor integration
 
 ## Installation
 
 ```bash
-go build -o endpoint-client .
+go build -o gravity .
 ```
-
-## Usage
-
-Start the proxy with required organization and project details:
-
-```bash
-./endpoint-client start \
-  --orgID "your-org-id" \
-  --projectID "your-project-id" \
-  --localPort 3500
-```
-
-### Required Flags
-
-- `--orgID` (`-o`): Organization ID
-- `--projectID` (`-pr`): Project ID
-
-### Optional Flags
-
-- `--localPort` (`-p`): Local port for the proxy (default: 3500)
 
 ## How It Works
 

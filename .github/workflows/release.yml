@@ -1,79 +1,36 @@
-name: Build and Release
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
 
 permissions:
   contents: write
+  id-token: write
+  packages: write
+  attestations: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goos: [linux, windows, darwin]
-        goarch: [amd64, arm64]
-        exclude:
-          - goos: windows
-            goarch: arm64
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.25.3'
-
-    - name: Get dependencies
-      run: go mod download
-
-    - name: Build binary
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-      run: |
-        mkdir -p dist
-        BINARY_NAME=gravity-proxy
-        if [ "$GOOS" = "windows" ]; then
-          BINARY_NAME="${BINARY_NAME}.exe"
-        fi
-        go build -ldflags="-s -w" -o dist/${BINARY_NAME} .
-        
-        # Create archive
-        cd dist
-        if [ "$GOOS" = "windows" ]; then
-          zip gravity-proxy-${GOOS}-${GOARCH}.zip ${BINARY_NAME}
-        else
-          tar -czf gravity-proxy-${GOOS}-${GOARCH}.tar.gz ${BINARY_NAME}
-        fi
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: gravity-proxy-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: dist/gravity-proxy-*
-
   release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: artifacts/*/gravity-proxy-*
-        generate_release_notes: true
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser-pro
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_SECRET }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}

@@ -2,55 +2,78 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
 	_logger "github.com/agentuity/go-common/logger"
 	cnet "github.com/agentuity/go-common/network"
-	"github.com/agentuity/gravity-proxy/internal/stack"
-	"github.com/agentuity/gravity-proxy/internal/utils"
+	csys "github.com/agentuity/go-common/sys"
+	"github.com/agentuity/gravity/internal/stack"
+	"github.com/agentuity/gravity/internal/utils"
 	"github.com/spf13/cobra"
 )
 
-var startCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Start the gravity proxy",
+var version string = "dev"
+
+var rootCmd = &cobra.Command{
+	Use:   "gravity",
+	Short: "Run the gravity client",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		logger := _logger.NewConsoleLogger(_logger.LevelTrace)
-		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		flags := cmd.Flags()
+
+		var logLevel _logger.LogLevel
+		logLevelStr, _ := flags.GetString("log-level")
+		if logLevelStr == "" {
+			logLevel = _logger.GetLevelFromEnv()
+		} else {
+			switch logLevelStr {
+			case "info", "INFO":
+				logLevel = _logger.LevelInfo
+			case "debug", "DEBUG":
+				logLevel = _logger.LevelDebug
+			case "warn", "WARN":
+				logLevel = _logger.LevelWarn
+			case "trace", "TRACE":
+				logLevel = _logger.LevelTrace
+			case "error", "ERROR":
+				logLevel = _logger.LevelError
+			default:
+				logLevel = _logger.LevelTrace
+			}
+		}
+
+		logger := _logger.NewConsoleLogger(logLevel)
+
+		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
-		localPort, _ := cmd.Flags().GetInt("localPort")
-		orgID, _ := cmd.Flags().GetString("orgID")
-		projectID, _ := cmd.Flags().GetString("projectID")
-		token, _ := cmd.Flags().GetString("token")
-
-		endpoint, err := utils.GetDevModeEndpoint(ctx, logger, "https://api.agentuity.com", token, projectID, "hostname")
-		if err != nil {
-			logger.Error("failed to get devmode endpoint: %v", err)
-			os.Exit(1)
-		}
-		instanceID := endpoint.ID
+		localPort, _ := flags.GetInt("port")
+		orgID, _ := flags.GetString("org-id")
+		projectID, _ := flags.GetString("project-id")
+		token, _ := flags.GetString("token")
+		endpointID, _ := flags.GetString("endpoint-id")
+		gravityUrl, _ := flags.GetString("url")
 
 		ipv4addr, err := utils.GetPrivateIPv4()
 		if err != nil {
-			logger.Error("failed to get private IPv4: %v", err)
-			os.Exit(1)
+			logger.Fatal("failed to get private IPv4: %v", err)
 		}
 
 		agent := stack.AgentMetadata{
 			OrgID:      orgID,
-			InstanceID: instanceID,
 			ProjectID:  projectID,
+			InstanceID: endpointID,
 		}
 
 		ipv6Address := cnet.NewIPv6Address(cnet.GetRegion(""), cnet.NetworkHadron, agent.OrgID, agent.InstanceID, ipv4addr)
-		proxyPort, err := utils.FindAvailableOpenPort()
+		proxyPort, err := csys.GetFreePort()
 		if err != nil {
-			logger.Error("failed to find available open port: %v", err)
-			os.Exit(1)
+			logger.Fatal("failed to find available open port: %v", err)
 		}
 
 		urls := stack.UrlsMetadata{
@@ -59,61 +82,57 @@ var startCmd = &cobra.Command{
 			LocalPort: localPort,
 			ProxyPort: proxyPort,
 			Token:     token,
+			URL:       gravityUrl,
+			Version:   version,
 		}
 
 		provResp, err := stack.ProvisionGravity(ctx, logger, agent, urls)
 		if err != nil {
-			logger.Error("failed to provision gravity: %v", err)
-			os.Exit(1)
+			logger.Fatal("failed to provision gravity: %v", err)
 		}
 		tlsConfig, err := stack.GenerateCertificate(ctx, logger, provResp)
 		if err != nil {
-			logger.Error("failed to generate certificate: %v", err)
-			os.Exit(1)
+			logger.Fatal("failed to generate certificate: %v", err)
 		}
 		server, err := stack.StartServer(ctx, logger, tlsConfig, urls)
 		if err != nil {
-			logger.Error("failed to start server: %v", err)
-			os.Exit(1)
+			logger.Fatal("failed to start server: %v", err)
 		}
 
 		netStack, linkEP, err := stack.CreateNetworkStack(logger, urls)
 		if err != nil {
-			logger.Error("failed to create network stack: %v", err)
-			os.Exit(1)
+			logger.Fatal("failed to create network stack: %v", err)
 		}
 		defer netStack.Close()
 		defer linkEP.Close()
 
 		provider, client, err := stack.CreateNetworkProvider(ctx, logger, linkEP, provResp, urls, agent)
 		if err != nil {
-			logger.Error("failed to create network provider: %v", err)
-			os.Exit(1)
+			logger.Fatal("failed to create network provider: %v", err)
 		}
 
 		// Wait for provider connection
 		select {
 		case <-ctx.Done():
-			logger.Error("context done: %v", ctx.Err())
-			os.Exit(1)
+			logger.Fatal("context done: %v", ctx.Err())
 		case <-time.After(time.Second * 10):
 			logger.Error("timed out waiting for provider connection")
 			os.Exit(1)
 		case <-provider.Connected:
-			logger.Info("✅ Connected to Gravity! Proxy is ready.")
+			logger.Debug("✅ Connected to Gravity! Proxy is ready.")
 			break
 		}
 
 		// Handle disconnection and reconnection (simplified)
 		go func() {
-			logger.Info("waiting on provider disconnect")
+			logger.Debug("waiting on provider disconnect")
 			client.Disconnected(ctx)
-			logger.Info("Disconnected from Gravity")
+			logger.Debug("Disconnected from Gravity")
 		}()
 
 		// Wait for context cancellation
 		<-ctx.Done()
-		logger.Info("Shutting down...")
+		logger.Debug("Shutting down...")
 
 		// Cleanup
 		if err := client.Close(); err != nil {
@@ -128,23 +147,50 @@ var startCmd = &cobra.Command{
 	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the version",
+	Args:  cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println(version)
+	},
+}
+
 func Execute() {
-	err := startCmd.Execute()
+	info, ok := debug.ReadBuildInfo()
+	if ok {
+		for _, s := range info.Settings {
+			if s.Key == "vcs.revision" {
+				version = s.Value
+			}
+		}
+	}
+	if sha := os.Getenv("GIT_SHA"); sha != "" {
+		version = sha
+	}
+	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	startCmd.Flags().IntP("localPort", "p", 3500, "Local port for the proxy")
-	startCmd.Flags().StringP("orgID", "o", "", "Organization ID")
-	startCmd.Flags().StringP("projectID", "i", "", "Project ID")
-	startCmd.Flags().StringP("token", "t", "", "API Token")
+	rootCmd.AddCommand(versionCmd)
+	rootCmd.DisableSuggestions = true
+	rootCmd.DisableAutoGenTag = true
+
+	rootCmd.Flags().IntP("port", "p", 3500, "Local port for the proxy")
+	rootCmd.Flags().StringP("org-id", "o", "", "Organization ID")
+	rootCmd.Flags().StringP("project-id", "i", "", "Project ID")
+	rootCmd.Flags().StringP("token", "t", "", "API Token")
+	rootCmd.Flags().StringP("endpoint-id", "e", "", "The endpoint id")
+	rootCmd.Flags().StringP("url", "u", "grpc://devmode.agentuity.com", "The gravity url")
+	rootCmd.Flags().String("log-level", "", "The log level to use")
+
 	// Mark required flags
-	startCmd.MarkFlagRequired("orgID")
-	startCmd.MarkFlagRequired("projectID")
-	startCmd.MarkFlagRequired("localPort")
-	startCmd.MarkFlagRequired("token")
+	rootCmd.MarkFlagRequired("org-id")
+	rootCmd.MarkFlagRequired("project-id")
+	rootCmd.MarkFlagRequired("port")
+	rootCmd.MarkFlagRequired("token")
+	rootCmd.MarkFlagRequired("endpoint-id")
 }

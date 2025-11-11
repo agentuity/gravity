@@ -1,8 +1,6 @@
 package stack
 
 import (
-	"fmt"
-
 	"github.com/agentuity/go-common/gravity"
 )
 
@@ -34,5 +32,4 @@ func (p *networkProvider) Running() bool {
 }
 
 func (p *networkProvider) Start(handler func(packet []byte)) {
-	fmt.Println("starting network provider")
 }
