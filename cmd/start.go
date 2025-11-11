@@ -187,10 +187,6 @@ func init() {
 	rootCmd.Flags().StringP("url", "u", "grpc://devmode.agentuity.com", "The gravity url")
 	rootCmd.Flags().String("log-level", "", "The log level to use")
 
-	// Mark required flags
-	rootCmd.MarkFlagRequired("org-id")
-	rootCmd.MarkFlagRequired("project-id")
-	rootCmd.MarkFlagRequired("port")
-	rootCmd.MarkFlagRequired("token")
+	// Mark required flags that must be passed in
 	rootCmd.MarkFlagRequired("endpoint-id")
 }
