@@ -2,7 +2,6 @@ package stack
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/agentuity/go-common/gravity/proto"
 	"github.com/agentuity/go-common/gravity/provider"
@@ -21,7 +20,7 @@ type GravityClient struct {
 }
 
 func (p *GravityClient) Configure(config provider.Configuration) error {
-	p.logger.Info("configuring provider")
+	p.logger.Debug("configuring provider")
 	p.config = config
 	p.Connected <- struct{}{}
 	return nil
@@ -36,7 +35,6 @@ func (p *GravityClient) Resources() []*proto.ExistingDeployment {
 }
 
 func (p *GravityClient) SetMetricsCollector(collector provider.ProjectRuntimeStatsCollector) {
-	fmt.Println("setting metrics collector")
 }
 
 func (p *GravityClient) ProcessInPacket(payload []byte) {

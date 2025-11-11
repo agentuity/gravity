@@ -38,4 +38,4 @@ dist/
 /my*test*
 /test*
 .agentuity-crash-*
-gravity-proxy
+gravity

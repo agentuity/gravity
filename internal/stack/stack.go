@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	nicID = 1
-	mtu   = 1500
+	nicID      = 1
+	mtu        = 1500
+	clientName = "cli/devmode"
 )
 
 type AgentMetadata struct {
@@ -43,6 +44,8 @@ type UrlsMetadata struct {
 	ProxyPort int
 	LocalPort int
 	Token     string
+	URL       string
+	Version   string
 }
 
 func ProvisionGravity(ctx context.Context, logger _logger.Logger, agent AgentMetadata, urls UrlsMetadata) (*proto.ProvisionResponse, error) {
@@ -54,7 +57,7 @@ func ProvisionGravity(ctx context.Context, logger _logger.Logger, agent AgentMet
 
 	requestObj := gravity.ProvisionRequest{
 		Context:    ctx,
-		GravityURL: "grpc://devmode.agentuity.com",
+		GravityURL: urls.URL,
 		InstanceID: agent.InstanceID,
 		Region:     "unknown",
 		Provider:   "other",
@@ -68,7 +71,7 @@ func ProvisionGravity(ctx context.Context, logger _logger.Logger, agent AgentMet
 		},
 	}
 
-	logger.Info("Provisioning gravity connection...")
+	logger.Debug("Provisioning gravity connection...")
 	resp, err := gravity.Provision(requestObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to provision: %w", err)
@@ -83,7 +86,7 @@ func GenerateCertificate(_ context.Context, logger _logger.Logger, prov *proto.P
 	if err != nil {
 		return nil, fmt.Errorf("failed to load certificate: %w", err)
 	}
-	logger.Info("Loaded certificate: %s", cert.Leaf.Subject.CommonName)
+	logger.Debug("Loaded certificate: %s", cert.Leaf.Subject.CommonName)
 
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(prov.CaCertificate) {
@@ -98,7 +101,7 @@ func GenerateCertificate(_ context.Context, logger _logger.Logger, prov *proto.P
 		NextProtos:       []string{"h2", "http/1.1"},
 	}
 
-	logger.Info("Generated TLS config")
+	logger.Debug("Generated TLS config")
 
 	return tlsConfig, nil
 }
@@ -134,10 +137,9 @@ func StartServer(ctx context.Context, logger _logger.Logger, tlsConfig *tls.Conf
 	}
 
 	var serverOnce sync.Once
-	// TODO: call shutdown function on server
 	var serverErr error
 	go func() {
-		logger.Info("Starting HTTPS proxy server on port %d", urls.ProxyPort)
+		logger.Debug("Starting HTTPS proxy server on port %d", urls.ProxyPort)
 		if err := server.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 			serverOnce.Do(func() {
 				serverErr = fmt.Errorf("failed to start HTTPS proxy server: %w", err)
@@ -247,19 +249,24 @@ func CreateNetworkProvider(
 	prov.ep = linkEP
 	prov.Connected = make(chan struct{}, 1)
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	client, err := gravity.New(gravity.GravityConfig{
 		Context:       ctx,
 		Logger:        logger,
-		URL:           "grpc://devmode.agentuity.com",
-		ClientName:    "cli/devmode",
-		ClientVersion: "dev",
+		URL:           urls.URL,
+		ClientName:    clientName,
+		ClientVersion: urls.Version,
 		AuthToken:     provResp.ClientToken,
 		Cert:          string(provResp.Certificate),
 		Key:           string(provResp.PrivateKey),
 		CACert:        string(provResp.CaCertificate),
 		InstanceID:    agent.InstanceID,
 		ReportStats:   false,
-		WorkingDir:    ".",
+		WorkingDir:    cwd,
 		ConnectionPoolConfig: &gravity.ConnectionPoolConfig{
 			PoolSize:             1,
 			StreamsPerConnection: 1,
