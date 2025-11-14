@@ -1,6 +1,6 @@
 module github.com/agentuity/gravity
 
-go 1.25.3
+go 1.25.4
 
 require (
 	github.com/agentuity/go-common v1.0.120
