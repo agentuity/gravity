@@ -162,7 +162,7 @@ func StartServer(ctx context.Context, logger _logger.Logger, tlsConfig *tls.Conf
 	proxy.FlushInterval = -1
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		// Suppress expected context cancellation errors (client disconnect, WebSocket close)
-		if ctx.Err() == context.Canceled {
+		if ctx.Err() == context.Canceled || r.Context().Err() == context.Canceled {
 			return
 		}
 		logger.Error("proxy error: %v", err)
