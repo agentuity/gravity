@@ -124,12 +124,17 @@ func GenerateCertificate(_ context.Context, logger _logger.Logger, prov *proto.P
 		Certificates:     []tls.Certificate{cert},
 		RootCAs:          caCertPool,
 		ClientCAs:        caCertPool, // Also set ClientCAs for mutual TLS
+		ClientAuth:       tls.VerifyClientCertIfGiven,
 		MinVersion:       tls.VersionTLS13,
 		CurvePreferences: []tls.CurveID{tls.X25519, tls.X25519MLKEM768, tls.CurveP256},
 		NextProtos:       []string{"h2", "http/1.1"},
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			remoteAddr := "<no-remote>"
+			if hello != nil && hello.Conn != nil {
+				remoteAddr = hello.Conn.RemoteAddr().String()
+			}
 			logger.Trace("TLS GetCertificate: ServerName=%s, SupportedProtos=%v, RemoteAddr=%v",
-				hello.ServerName, hello.SupportedProtos, hello.Conn.RemoteAddr())
+				hello.ServerName, hello.SupportedProtos, remoteAddr)
 			return &cert, nil
 		},
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
