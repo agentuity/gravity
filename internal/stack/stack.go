@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
@@ -86,22 +87,64 @@ func GenerateCertificate(_ context.Context, logger _logger.Logger, prov *proto.P
 	if err != nil {
 		return nil, fmt.Errorf("failed to load certificate: %w", err)
 	}
-	logger.Debug("Loaded certificate: %s", cert.Leaf.Subject.CommonName)
+
+	// Parse the certificate to log details
+	if len(cert.Certificate) > 0 {
+		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+		if err == nil {
+			cert.Leaf = x509Cert
+			logger.Debug("Loaded certificate: CN=%s, SANs=%v, NotBefore=%v, NotAfter=%v",
+				x509Cert.Subject.CommonName, x509Cert.DNSNames, x509Cert.NotBefore, x509Cert.NotAfter)
+		} else {
+			logger.Warn("Failed to parse certificate for logging: %v", err)
+		}
+	}
 
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(prov.CaCertificate) {
 		return nil, fmt.Errorf("failed to parse CA certificate")
 	}
 
+	// Parse and log CA certificate details
+	caCert, err := x509.ParseCertificate(prov.CaCertificate)
+	if err == nil {
+		logger.Debug("Loaded CA certificate: CN=%s, Issuer=%s", caCert.Subject.CommonName, caCert.Issuer.CommonName)
+	} else {
+		// Try parsing as PEM
+		block, _ := pem.Decode(prov.CaCertificate)
+		if block != nil {
+			caCert, err = x509.ParseCertificate(block.Bytes)
+			if err == nil {
+				logger.Debug("Loaded CA certificate (PEM): CN=%s, Issuer=%s", caCert.Subject.CommonName, caCert.Issuer.CommonName)
+			}
+		}
+	}
+
 	tlsConfig := &tls.Config{
 		Certificates:     []tls.Certificate{cert},
 		RootCAs:          caCertPool,
+		ClientCAs:        caCertPool, // Also set ClientCAs for mutual TLS
 		MinVersion:       tls.VersionTLS13,
 		CurvePreferences: []tls.CurveID{tls.X25519, tls.X25519MLKEM768, tls.CurveP256},
 		NextProtos:       []string{"h2", "http/1.1"},
+		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			logger.Trace("TLS GetCertificate: ServerName=%s, SupportedProtos=%v, RemoteAddr=%v",
+				hello.ServerName, hello.SupportedProtos, hello.Conn.RemoteAddr())
+			return &cert, nil
+		},
+		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			logger.Trace("TLS VerifyPeerCertificate: chains=%d, rawCerts=%d", len(verifiedChains), len(rawCerts))
+			if len(rawCerts) > 0 {
+				peerCert, err := x509.ParseCertificate(rawCerts[0])
+				if err == nil {
+					logger.Trace("Peer certificate: CN=%s, SANs=%v", peerCert.Subject.CommonName, peerCert.DNSNames)
+				}
+			}
+			return nil
+		},
 	}
 
-	logger.Debug("Generated TLS config")
+	logger.Debug("Generated TLS config with certificate logging enabled")
 
 	return tlsConfig, nil
 }
@@ -117,14 +160,31 @@ func StartServer(ctx context.Context, logger _logger.Logger, tlsConfig *tls.Conf
 
 	proxy := httputil.NewSingleHostReverseProxy(upstreamURL)
 	proxy.FlushInterval = -1
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		// Suppress expected context cancellation errors (client disconnect, WebSocket close)
+		if ctx.Err() == context.Canceled {
+			return
+		}
+		logger.Error("proxy error: %v", err)
+		http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
+	}
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		logger.Trace("response %s: %d", resp.Request.URL.Path, resp.StatusCode)
+		return nil
+	}
 
-	// Start HTTPS proxy server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", urls.ProxyPort),
 		TLSConfig:    tlsConfig,
 		ReadTimeout:  0,
 		WriteTimeout: 0,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			logger.Trace("HTTP request: method=%s, path=%s, proto=%s, remote=%s, tls=%v",
+				r.Method, r.URL.Path, r.Proto, r.RemoteAddr, r.TLS != nil)
+			if r.TLS != nil {
+				logger.Trace("TLS connection: version=%x, cipher=%x, server=%s, negotiated=%s",
+					r.TLS.Version, r.TLS.CipherSuite, r.TLS.ServerName, r.TLS.NegotiatedProtocol)
+			}
 			switch r.URL.Path {
 			case "/_health":
 				w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -138,13 +198,27 @@ func StartServer(ctx context.Context, logger _logger.Logger, tlsConfig *tls.Conf
 
 	var serverOnce sync.Once
 	var serverErr error
+
+	// For local development, use HTTP if TLS config is nil
+	useTLS := tlsConfig != nil
+
 	go func() {
-		logger.Debug("Starting HTTPS proxy server on port %d", urls.ProxyPort)
-		if err := server.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-			serverOnce.Do(func() {
-				serverErr = fmt.Errorf("failed to start HTTPS proxy server: %w", err)
-			})
-			logger.Error("HTTPS proxy server error: %v", err)
+		if useTLS {
+			logger.Debug("Starting HTTPS proxy server on port %d", urls.ProxyPort)
+			if err := server.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+				serverOnce.Do(func() {
+					serverErr = fmt.Errorf("failed to start HTTPS proxy server: %w", err)
+				})
+				logger.Error("HTTPS proxy server error: %v", err)
+			}
+		} else {
+			logger.Debug("Starting HTTP proxy server on port %d (local dev mode)", urls.ProxyPort)
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				serverOnce.Do(func() {
+					serverErr = fmt.Errorf("failed to start HTTP proxy server: %w", err)
+				})
+				logger.Error("HTTP proxy server error: %v", err)
+			}
 		}
 	}()
 	return server, serverErr
