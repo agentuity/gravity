@@ -59,6 +59,7 @@ var rootCmd = &cobra.Command{
 		token, _ := flags.GetString("token")
 		endpointID, _ := flags.GetString("endpoint-id")
 		gravityUrl, _ := flags.GetString("url")
+		healthCheck, _ := flags.GetBool("health-check")
 
 		ipv4addr, err := utils.GetPrivateIPv4()
 		if err != nil {
@@ -124,21 +125,25 @@ var rootCmd = &cobra.Command{
 			break
 		}
 
-		// Start heartbeat server for health monitoring
-		heartbeatServer, err := heartbeat.NewServer(logger)
-		if err != nil {
-			logger.Fatal("failed to create heartbeat server: %v", err)
-		}
-		defer heartbeatServer.Shutdown()
-
-		// Print heartbeat port to stdout so the dev command can read it
-		fmt.Printf("HEARTBEAT_PORT=%d\n", heartbeatServer.Port())
-
-		go func() {
-			if err := heartbeatServer.Start(ctx); err != nil {
-				logger.Error("heartbeat server error: %v", err)
+		// Start heartbeat server for health monitoring (only if --health-check is enabled)
+		var heartbeatServer *heartbeat.Server
+		if healthCheck {
+			var err error
+			heartbeatServer, err = heartbeat.NewServer(logger)
+			if err != nil {
+				logger.Fatal("failed to create heartbeat server: %v", err)
 			}
-		}()
+			defer heartbeatServer.Shutdown()
+
+			// Print heartbeat port to stdout so the dev command can read it
+			fmt.Printf("HEARTBEAT_PORT=%d\n", heartbeatServer.Port())
+
+			go func() {
+				if err := heartbeatServer.Start(ctx); err != nil {
+					logger.Error("heartbeat server error: %v", err)
+				}
+			}()
+		}
 
 		// Handle disconnection and reconnection (simplified)
 		go func() {
@@ -203,6 +208,7 @@ func init() {
 	rootCmd.Flags().StringP("endpoint-id", "e", "", "The endpoint id")
 	rootCmd.Flags().StringP("url", "u", "grpc://devmode.agentuity.com", "The gravity url")
 	rootCmd.Flags().String("log-level", "", "The log level to use")
+	rootCmd.Flags().Bool("health-check", false, "Enable health check server for heartbeat monitoring")
 
 	// Mark required flags that must be passed in
 	rootCmd.MarkFlagRequired("endpoint-id")
