@@ -12,6 +12,7 @@ import (
 	_logger "github.com/agentuity/go-common/logger"
 	cnet "github.com/agentuity/go-common/network"
 	csys "github.com/agentuity/go-common/sys"
+	"github.com/agentuity/gravity/internal/heartbeat"
 	"github.com/agentuity/gravity/internal/stack"
 	"github.com/agentuity/gravity/internal/utils"
 	"github.com/spf13/cobra"
@@ -122,6 +123,22 @@ var rootCmd = &cobra.Command{
 			logger.Debug("✅ Connected to Gravity! Proxy is ready.")
 			break
 		}
+
+		// Start heartbeat server for health monitoring
+		heartbeatServer, err := heartbeat.NewServer(logger)
+		if err != nil {
+			logger.Fatal("failed to create heartbeat server: %v", err)
+		}
+		defer heartbeatServer.Shutdown()
+
+		// Print heartbeat port to stdout so the dev command can read it
+		fmt.Printf("HEARTBEAT_PORT=%d\n", heartbeatServer.Port())
+
+		go func() {
+			if err := heartbeatServer.Start(ctx); err != nil {
+				logger.Error("heartbeat server error: %v", err)
+			}
+		}()
 
 		// Handle disconnection and reconnection (simplified)
 		go func() {
