@@ -87,7 +87,7 @@ var rootCmd = &cobra.Command{
 			// Try SEC 1/EC format as fallback
 			key, err = x509.ParseECPrivateKey(block.Bytes)
 			if err != nil {
-				logger.Fatal("failed to parse private key: %v %s", err, string(privateKeyPEM))
+				logger.Fatal("failed to parse private key: %v (pem length: %d)", err, len(privateKeyPEM))
 			}
 		}
 		privateKey, ok := key.(*ecdsa.PrivateKey)
