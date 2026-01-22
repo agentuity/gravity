@@ -194,8 +194,11 @@ var rootCmd = &cobra.Command{
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			logger.Error("error shutting down proxy server: %v", err)
+		if server != nil {
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Error("error shutting down proxy server: %v", err)
+			}
+			server = nil
 		}
 	},
 }
