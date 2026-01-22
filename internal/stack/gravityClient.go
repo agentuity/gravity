@@ -17,13 +17,14 @@ type GravityClient struct {
 	logger    logger.Logger
 	config    provider.Configuration
 	Connected chan struct{}
+	onConnect func(*provider.Configuration) error
 }
 
 func (p *GravityClient) Configure(config provider.Configuration) error {
 	p.logger.Debug("configuring provider")
 	p.config = config
 	p.Connected <- struct{}{}
-	return nil
+	return p.onConnect(&config)
 }
 
 func (p *GravityClient) Deprovision(ctx context.Context, resourceID string, reason provider.DeprovisionReason) error {

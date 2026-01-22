@@ -1,9 +1,9 @@
 module github.com/agentuity/gravity
 
-go 1.25.4
+go 1.25.5
 
 require (
-	github.com/agentuity/go-common v1.0.127
+	github.com/agentuity/go-common v1.0.142
 	github.com/spf13/cobra v1.10.1
 	gvisor.dev/gvisor v0.0.0-20240423190808-9d7a357edefe
 )
@@ -51,7 +51,3 @@ require (
 	google.golang.org/grpc v1.76.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
-
-replace github.com/agentuity/cli => ..
-
-replace pkg.agentuity.com/cloud/go => github.com/agentuity/go-common v1.0.111

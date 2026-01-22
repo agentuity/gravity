@@ -2,6 +2,7 @@ package stack
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/agentuity/go-common/gravity"
 	"github.com/agentuity/go-common/gravity/proto"
+	"github.com/agentuity/go-common/gravity/provider"
 	_logger "github.com/agentuity/go-common/logger"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -37,6 +39,7 @@ type AgentMetadata struct {
 	InstanceID string
 	OrgID      string
 	ProjectID  string
+	PrivateKey *ecdsa.PrivateKey
 }
 
 type UrlsMetadata struct {
@@ -81,9 +84,14 @@ func ProvisionGravity(ctx context.Context, logger _logger.Logger, agent AgentMet
 	return resp, nil
 }
 
-func GenerateCertificate(_ context.Context, logger _logger.Logger, prov *proto.ProvisionResponse) (*tls.Config, error) {
+func GenerateCertificate(_ context.Context, logger _logger.Logger, bundle string) (*tls.Config, error) {
+	certPEM, caCertPEM, keyPEM, err := parsePEMBundle(bundle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate bundle: %w", err)
+	}
+
 	// Set up TLS config
-	cert, err := tls.X509KeyPair(prov.Certificate, prov.PrivateKey)
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load certificate: %w", err)
 	}
@@ -101,17 +109,17 @@ func GenerateCertificate(_ context.Context, logger _logger.Logger, prov *proto.P
 	}
 
 	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM(prov.CaCertificate) {
+	if !caCertPool.AppendCertsFromPEM(caCertPEM) {
 		return nil, fmt.Errorf("failed to parse CA certificate")
 	}
 
 	// Parse and log CA certificate details
-	caCert, err := x509.ParseCertificate(prov.CaCertificate)
+	caCert, err := x509.ParseCertificate(caCertPEM)
 	if err == nil {
 		logger.Debug("Loaded CA certificate: CN=%s, Issuer=%s", caCert.Subject.CommonName, caCert.Issuer.CommonName)
 	} else {
 		// Try parsing as PEM
-		block, _ := pem.Decode(prov.CaCertificate)
+		block, _ := pem.Decode(caCertPEM)
 		if block != nil {
 			caCert, err = x509.ParseCertificate(block.Bytes)
 			if err == nil {
@@ -294,9 +302,9 @@ func CreateNetworkProvider(
 	ctx context.Context,
 	logger _logger.Logger,
 	linkEP *channel.Endpoint,
-	provResp *proto.ProvisionResponse,
 	urls UrlsMetadata,
 	agent AgentMetadata,
+	onConnect func(*provider.Configuration) error,
 ) (*GravityClient, *gravity.GravityClient, error) {
 
 	// Egress pump to send outbound packets to Gravity
@@ -323,10 +331,12 @@ func CreateNetworkProvider(
 		}
 	}()
 
-	prov := GravityClient{}
-	prov.logger = logger
-	prov.ep = linkEP
-	prov.Connected = make(chan struct{}, 1)
+	prov := GravityClient{
+		onConnect: onConnect,
+		logger:    logger,
+		ep:        linkEP,
+		Connected: make(chan struct{}, 1),
+	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -334,18 +344,15 @@ func CreateNetworkProvider(
 	}
 
 	client, err := gravity.New(gravity.GravityConfig{
-		Context:       ctx,
-		Logger:        logger,
-		URL:           urls.URL,
-		ClientName:    clientName,
-		ClientVersion: urls.Version,
-		AuthToken:     provResp.ClientToken,
-		Cert:          string(provResp.Certificate),
-		Key:           string(provResp.PrivateKey),
-		CACert:        string(provResp.CaCertificate),
-		InstanceID:    agent.InstanceID,
-		ReportStats:   false,
-		WorkingDir:    cwd,
+		Context:         ctx,
+		Logger:          logger,
+		URL:             urls.URL,
+		ClientName:      clientName,
+		ClientVersion:   urls.Version,
+		InstanceID:      agent.InstanceID,
+		ECDSAPrivateKey: agent.PrivateKey,
+		ReportStats:     false,
+		WorkingDir:      cwd,
 		ConnectionPoolConfig: &gravity.ConnectionPoolConfig{
 			PoolSize:             1,
 			StreamsPerConnection: 1,
@@ -391,4 +398,57 @@ func bridgeToLocalTLS(logger _logger.Logger, proxyPort uint, remote *gonet.TCPCo
 		io.Copy(local, remote)
 	}()
 	io.Copy(remote, local)
+}
+
+// parsePEMBundle parses a PEM bundle containing certificate, CA certificate, and private key.
+// Blocks are identified by type, not position.
+func parsePEMBundle(bundle string) (cert, caCert, privateKey []byte, err error) {
+	data := []byte(bundle)
+	var certs []*pem.Block
+
+	for {
+		block, rest := pem.Decode(data)
+		if block == nil {
+			break
+		}
+
+		switch block.Type {
+		case "CERTIFICATE":
+			certs = append(certs, block)
+		case "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY":
+			if privateKey != nil {
+				return nil, nil, nil, fmt.Errorf("multiple private keys in bundle")
+			}
+			privateKey = pem.EncodeToMemory(block)
+		}
+
+		data = rest
+	}
+
+	if privateKey == nil {
+		return nil, nil, nil, fmt.Errorf("no private key found in bundle")
+	}
+
+	if len(certs) != 2 {
+		return nil, nil, nil, fmt.Errorf("expected 2 certificates (cert, ca), got %d", len(certs))
+	}
+
+	// Determine which cert is the CA by checking IsCA
+	for i, block := range certs {
+		x509Cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to parse certificate: %w", err)
+		}
+		if x509Cert.IsCA {
+			caCert = pem.EncodeToMemory(block)
+			cert = pem.EncodeToMemory(certs[1-i])
+			break
+		}
+	}
+
+	if caCert == nil {
+		return nil, nil, nil, fmt.Errorf("could not identify CA certificate")
+	}
+
+	return cert, caCert, privateKey, nil
 }
