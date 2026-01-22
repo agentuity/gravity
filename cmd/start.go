@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -125,21 +126,28 @@ var rootCmd = &cobra.Command{
 		defer linkEP.Close()
 
 		var server *http.Server
+		var serverMu sync.Mutex
 		provider, client, err := stack.CreateNetworkProvider(ctx, logger, linkEP, urls, agent, func(c *provider.Configuration) error {
-			if server != nil {
-				if err := server.Shutdown(ctx); err != nil {
+			serverMu.Lock()
+			oldServer := server
+			server = nil
+			serverMu.Unlock()
+			if oldServer != nil {
+				if err := oldServer.Shutdown(ctx); err != nil {
 					logger.Error("failed to shutdown server: %v", err)
 				}
-				server = nil
 			}
 			tlsConfig, err := stack.GenerateCertificate(ctx, logger, c.MachineCertBundle)
 			if err != nil {
 				return fmt.Errorf("failed to generate certificate: %w", err)
 			}
-			server, err = stack.StartServer(ctx, logger, tlsConfig, urls)
+			newServer, err := stack.StartServer(ctx, logger, tlsConfig, urls)
 			if err != nil {
 				return fmt.Errorf("failed to start server: %w", err)
 			}
+			serverMu.Lock()
+			server = newServer
+			serverMu.Unlock()
 			return nil
 		})
 		if err != nil {
@@ -194,11 +202,14 @@ var rootCmd = &cobra.Command{
 
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
-		if server != nil {
-			if err := server.Shutdown(shutdownCtx); err != nil {
+		serverMu.Lock()
+		serverToShutdown := server
+		server = nil
+		serverMu.Unlock()
+		if serverToShutdown != nil {
+			if err := serverToShutdown.Shutdown(shutdownCtx); err != nil {
 				logger.Error("error shutting down proxy server: %v", err)
 			}
-			server = nil
 		}
 	},
 }
