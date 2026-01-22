@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -81,9 +82,17 @@ var rootCmd = &cobra.Command{
 		if block == nil {
 			logger.Fatal("no PEM block found in --private-key")
 		}
-		privateKey, err := x509.ParseECPrivateKey(block.Bytes)
+		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 		if err != nil {
-			logger.Fatal("failed to parse private key: %v", err)
+			// Try SEC 1/EC format as fallback
+			key, err = x509.ParseECPrivateKey(block.Bytes)
+			if err != nil {
+				logger.Fatal("failed to parse private key: %v %s", err, string(privateKeyPEM))
+			}
+		}
+		privateKey, ok := key.(*ecdsa.PrivateKey)
+		if !ok {
+			logger.Fatal("private key is not an ECDSA key")
 		}
 
 		agent := stack.AgentMetadata{

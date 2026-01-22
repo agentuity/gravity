@@ -351,6 +351,7 @@ func CreateNetworkProvider(
 		ClientVersion:   urls.Version,
 		InstanceID:      agent.InstanceID,
 		ECDSAPrivateKey: agent.PrivateKey,
+		CACert:          GravityCACertificate(logger, urls.URL),
 		ReportStats:     false,
 		WorkingDir:      cwd,
 		ConnectionPoolConfig: &gravity.ConnectionPoolConfig{
