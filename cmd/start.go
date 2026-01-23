@@ -68,6 +68,11 @@ var rootCmd = &cobra.Command{
 		endpointID, _ := flags.GetString("endpoint-id")
 		gravityUrl, _ := flags.GetString("url")
 		healthCheck, _ := flags.GetBool("health-check")
+		token, _ := flags.GetString("token")
+
+		if token != "" {
+			logger.Fatal("The --token flag is no longer supported. Please update your Agentuity CLI to the latest version.")
+		}
 
 		ipv4addr, err := utils.GetPrivateIPv4()
 		if err != nil {
