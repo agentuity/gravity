@@ -254,7 +254,7 @@ func init() {
 	rootCmd.Flags().IntP("port", "p", 3500, "Local port for the proxy")
 	rootCmd.Flags().StringP("org-id", "o", os.Getenv("AGENTUITY_CLOUD_ORG_ID"), "Organization ID")
 	rootCmd.Flags().StringP("project-id", "i", os.Getenv("AGENTUITY_CLOUD_PROJECT_ID"), "Project ID")
-	rootCmd.Flags().StringP("token", "t", os.Getenv("AGENTUITY_SDK_KEY"), "Project SDK Key")
+	rootCmd.Flags().StringP("token", "t", "", "Deprecated")
 	rootCmd.Flags().StringP("endpoint-id", "e", "", "The endpoint id")
 	rootCmd.Flags().StringP("url", "u", "grpc://devmode.agentuity.com", "The gravity url")
 	rootCmd.Flags().String("log-level", "", "The log level to use")
