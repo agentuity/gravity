@@ -379,6 +379,10 @@ func CreateNetworkProvider(
 	network.client = client
 
 	if err := client.Start(); err != nil {
+		// Don't wrap context.Canceled - let it propagate cleanly for graceful shutdown
+		if err == context.Canceled {
+			return nil, nil, err
+		}
 		return nil, nil, fmt.Errorf("failed to start gravity client: %w", err)
 	}
 
