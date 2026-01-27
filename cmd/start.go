@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -156,13 +157,20 @@ var rootCmd = &cobra.Command{
 			return nil
 		})
 		if err != nil {
+			// Don't log fatal error for context cancellation (graceful shutdown)
+			if errors.Is(err, context.Canceled) {
+				logger.Debug("gravity client shutdown due to context cancellation")
+				return
+			}
 			logger.Fatal("failed to create network provider: %v", err)
 		}
 
 		// Wait for provider connection
 		select {
 		case <-ctx.Done():
-			logger.Fatal("context done: %v", ctx.Err())
+			// Context cancelled during startup - graceful shutdown, not an error
+			logger.Debug("context cancelled during startup: %v", ctx.Err())
+			return
 		case <-time.After(time.Second * 10):
 			logger.Error("timed out waiting for provider connection")
 			os.Exit(1)
