@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -175,7 +176,7 @@ func StartServer(ctx context.Context, logger _logger.Logger, tlsConfig *tls.Conf
 	proxy.FlushInterval = -1
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		// Suppress expected context cancellation errors (client disconnect, WebSocket close)
-		if ctx.Err() == context.Canceled || r.Context().Err() == context.Canceled {
+		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(r.Context().Err(), context.Canceled) {
 			return
 		}
 		logger.Error("proxy error: %v", err)
@@ -380,7 +381,7 @@ func CreateNetworkProvider(
 
 	if err := client.Start(); err != nil {
 		// Don't wrap context.Canceled - let it propagate cleanly for graceful shutdown
-		if err == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			return nil, nil, err
 		}
 		return nil, nil, fmt.Errorf("failed to start gravity client: %w", err)

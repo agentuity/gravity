@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -157,7 +158,7 @@ var rootCmd = &cobra.Command{
 		})
 		if err != nil {
 			// Don't log fatal error for context cancellation (graceful shutdown)
-			if err == context.Canceled {
+			if errors.Is(err, context.Canceled) {
 				logger.Debug("gravity client shutdown due to context cancellation")
 				return
 			}
