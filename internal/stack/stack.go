@@ -320,7 +320,7 @@ func CreateNetworkProvider(
 		ClientVersion:   urls.Version,
 		InstanceID:      agent.InstanceID,
 		ECDSAPrivateKey: agent.PrivateKey,
-		CACert:          GravityCACertificate(logger, urls.URL),
+		CACert:          GravityCACertificate(logger, urls.URL), // NB(robin): once this is connecting to gravity-<region>.agentuity.cloud we can drop the CA here
 		ReportStats:     false,
 		WorkingDir:      cwd,
 		ConnectionPoolConfig: &gravity.ConnectionPoolConfig{
