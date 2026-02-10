@@ -53,38 +53,6 @@ type UrlsMetadata struct {
 	Version   string
 }
 
-func ProvisionGravity(ctx context.Context, logger _logger.Logger, agent AgentMetadata, urls UrlsMetadata) (*proto.ProvisionResponse, error) {
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("error getting hostname: %w", err)
-	}
-
-	requestObj := gravity.ProvisionRequest{
-		Context:    ctx,
-		GravityURL: urls.URL,
-		InstanceID: agent.InstanceID,
-		Region:     "unknown",
-		Provider:   "other",
-		PrivateIP:  urls.IPv4Addr,
-		Token:      urls.Token,
-		Hostname:   hostname,
-		Ephemeral:  true,
-		Capabilities: &proto.ClientCapabilities{
-			DynamicHostname: true,
-			// DynamicProjectRouting: "",
-		},
-	}
-
-	logger.Debug("Provisioning gravity connection...")
-	resp, err := gravity.Provision(requestObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to provision: %w", err)
-	}
-
-	return resp, nil
-}
-
 func GenerateCertificate(_ context.Context, logger _logger.Logger, bundle string) (*tls.Config, error) {
 	certPEM, caCertPEM, keyPEM, err := parsePEMBundle(bundle)
 	if err != nil {
