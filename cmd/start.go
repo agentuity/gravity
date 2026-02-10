@@ -264,7 +264,7 @@ func init() {
 	rootCmd.Flags().StringP("project-id", "i", os.Getenv("AGENTUITY_CLOUD_PROJECT_ID"), "Project ID")
 	rootCmd.Flags().StringP("token", "t", "", "Deprecated")
 	rootCmd.Flags().StringP("endpoint-id", "e", "", "The endpoint id")
-	rootCmd.Flags().StringP("url", "u", "grpc://devmode.agentuity.com", "The gravity url")
+	rootCmd.Flags().StringP("url", "u", "grpc://devmode-us.agentuity.com", "The gravity url")
 	rootCmd.Flags().String("log-level", "", "The log level to use")
 	rootCmd.Flags().Bool("health-check", false, "Enable health check server for heartbeat monitoring")
 	rootCmd.Flags().String("private-key", "", "EC private key for authentication (PEM string, base64-encoded PEM, or file path)")

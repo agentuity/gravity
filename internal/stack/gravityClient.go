@@ -1,9 +1,6 @@
 package stack
 
 import (
-	"context"
-
-	"github.com/agentuity/go-common/gravity/proto"
 	"github.com/agentuity/go-common/gravity/provider"
 	"github.com/agentuity/go-common/logger"
 	"gvisor.dev/gvisor/pkg/buffer"
@@ -25,17 +22,6 @@ func (p *GravityClient) Configure(config provider.Configuration) error {
 	p.config = config
 	p.Connected <- struct{}{}
 	return p.onConnect(&config)
-}
-
-func (p *GravityClient) Deprovision(ctx context.Context, resourceID string, reason provider.DeprovisionReason) error {
-	return nil
-}
-
-func (p *GravityClient) Resources() []*proto.ExistingDeployment {
-	return nil
-}
-
-func (p *GravityClient) SetMetricsCollector(collector provider.ProjectRuntimeStatsCollector) {
 }
 
 func (p *GravityClient) ProcessInPacket(payload []byte) {
