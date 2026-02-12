@@ -1,9 +1,9 @@
 module github.com/agentuity/gravity
 
-go 1.25.5
+go 1.26.0
 
 require (
-	github.com/agentuity/go-common v1.0.149
+	github.com/agentuity/go-common v1.0.150
 	github.com/spf13/cobra v1.10.1
 	gvisor.dev/gvisor v0.0.0-20240423190808-9d7a357edefe
 )
